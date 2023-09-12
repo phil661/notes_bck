@@ -2,8 +2,8 @@ from notes_model import TaskCardDataModel
 from filter_window import SettingsWindow
 from PySide2 import QtCore, QtWidgets, QtGui
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMessageBox, QLineEdit
-from PySide2.QtCore import Qt
+from PySide2.QtWidgets import QMessageBox, QLineEdit, QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem
+from PySide2.QtCore import Qt, Slot
 
 
 import sys
@@ -16,7 +16,7 @@ try:
 except:
     pass
 
-#sys.path.append('/Volumes/Projects/Production/Personal/Plariviere/notes_app')
+sys.path.append('/Volumes/Projects/Production/Personal/Plariviere/notes_app')
 os.chdir("/Volumes/Projects/Production/Personal/Plariviere/notes_app")
 
 
@@ -29,6 +29,72 @@ class ClickableFrame(QtWidgets.QFrame):
     def dropEvent(self, event):
         self.dropped.emit()
         super().dropEvent(event)
+
+
+class FilterDialog(QDialog):
+    def __init__(self, parent=None):
+        super(FilterDialog, self).__init__(parent)
+
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+
+        self.setGeometry(100, 100, 200, 170)
+
+        self.filter_tree = QTreeWidget(self)
+
+        # Hide the header
+        self.filter_tree.setHeaderHidden(True)
+
+        # Add tree widget items for "Status" and "Date Created"
+        status_item = QTreeWidgetItem(self.filter_tree)
+        status_item.setText(0, "Date Created")
+        status_item.setExpanded(True)
+
+        # Add sub-items for "Status" and make them checkable
+        self.todo_item = QTreeWidgetItem(status_item)
+        self.todo_item.setText(0, "To Do")
+        self.todo_item.setCheckState(0, Qt.Unchecked)
+
+        self.urgent_item = QTreeWidgetItem(status_item)
+        self.urgent_item.setText(0, "Urgent")
+        self.urgent_item.setCheckState(0, Qt.Unchecked)
+
+        self.completed_item = QTreeWidgetItem(status_item)
+        self.completed_item.setText(0, "Completed")
+        self.completed_item.setCheckState(0, Qt.Unchecked)
+
+        date_item = QTreeWidgetItem(self.filter_tree)
+        date_item.setText(0, "Date Created")
+        date_item.setExpanded(True)
+
+        # Add sub-items for "Date Created" and make them checkable
+        self.today_item = QTreeWidgetItem(date_item)
+        self.today_item.setText(0, "Today")
+        self.today_item.setCheckState(0, Qt.Unchecked)
+
+        self.yesterday_item = QTreeWidgetItem(date_item)
+        self.yesterday_item.setText(0, "Yesterday")
+        self.yesterday_item.setCheckState(0, Qt.Unchecked)
+
+        self.last_week_item = QTreeWidgetItem(date_item)
+        self.last_week_item.setText(0, "Last Week")
+        self.last_week_item.setCheckState(0, Qt.Unchecked)
+
+        # Connect itemClicked signal to a function that checks the item
+        self.filter_tree.itemClicked.connect(self.checkItem)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.filter_tree)
+        self.setLayout(layout)
+
+    def checkItem(self, item, column):
+        # Check if the clicked item is a sub-item under "Date Created" or "Status"
+        if item.parent() and (item.parent().text(0) == "Date Created" or item.parent().text(0) == "Status"):
+            # Toggle the item's check state when it's clicked
+            if item.checkState(column) == Qt.Checked:
+                item.setCheckState(column, Qt.Unchecked)
+            else:
+                item.setCheckState(column, Qt.Checked)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -63,8 +129,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setup_shortcuts()
         self.setup_stylesheet()
 
-        #self.window.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        #self.window.filter_tree.header().setVisible(False)
+        self.window.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.filter_dialog = None
 
         try:
             if nuke:
@@ -134,10 +201,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.window.shot_list.currentItemChanged.connect(self.load_task_cards)
         self.window.shot_list.currentItemChanged.connect(self.update_current_shot)
 
-        #self.window.filter_combobox.currentIndexChanged.connect(self.filter_combobox_changed)
-        #self.window.date_filter_combobox.currentIndexChanged.connect(self.date_filter_combobox_changed)
-
-        self.window.filters_button.clicked.connect(self.show_filters)
+        self.window.filters_button.clicked.connect(self.toggle_filters)
 
         self.window.task_list.itemPressed.connect(self.handle_frame_click)
 
@@ -153,10 +217,37 @@ class MainWindow(QtWidgets.QMainWindow):
         self.window.settings_button.clicked.connect(self.open_settings_window)
         self.window.settings_button.clicked.connect(self.dm.save_data_to_json)
 
-    def show_filters(self):
-        #current_state = self.window.filter_tree.isVisible()
-        #self.window.filter_tree.setVisible(not current_state)
-        pass
+    def toggle_filters(self):
+        if not self.filter_dialog:
+            self.create_filter_dialog()
+
+        if self.window.filters_button.isChecked():
+            self.filter_dialog.show()
+        else:
+            self.filter_dialog.hide()
+
+    def create_filter_dialog(self):
+        self.filter_dialog = FilterDialog(self)
+        self.filter_dialog.hide()
+        self.update_filter_dialog_position()
+
+    def update_filter_dialog_position(self):
+        if self.filter_dialog and self.isVisible():
+            button_rect = self.window.filters_button.geometry()
+            button_width = button_rect.width()
+
+            # Calculate the new position based on the button's position and size
+            new_x = self.geometry().x() + button_rect.x() + button_width - 200
+            new_y = self.geometry().y() + button_rect.bottom() + 10
+
+            # Move the filter dialog to the new position
+            self.filter_dialog.move(new_x, new_y)
+
+    def moveEvent(self, event):
+        self.update_filter_dialog_position()
+
+    def resizeEvent(self, event):
+        self.update_filter_dialog_position()
 
     def open_settings_window(self):
         self.settings_window = SettingsWindow(parent=self)  # Set parent to MainWindow

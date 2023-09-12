@@ -229,10 +229,13 @@
         </item>
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_3">
-          <item>
+          <item alignment="Qt::AlignRight">
            <widget class="QToolButton" name="filters_button">
             <property name="text">
              <string>...</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
