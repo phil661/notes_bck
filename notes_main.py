@@ -63,7 +63,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setup_shortcuts()
         self.setup_stylesheet()
 
-        self.window.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        #self.window.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        #self.window.filter_tree.header().setVisible(False)
 
         try:
             if nuke:
@@ -102,12 +103,8 @@ class MainWindow(QtWidgets.QMainWindow):
         current_filter_index = self.dm.current_filter_index
         date_filter_index = self.dm.current_date_filter
 
-        # Populate the combobox with filter options before setting the index
-        self.window.filter_combobox.addItems(['To Do', 'Urgent', 'Completed', 'All'])
-        self.window.date_filter_combobox.addItems(['Today', 'Yesterday', 'Last_week', 'All'])
-
-        self.window.filter_combobox.setCurrentIndex(current_filter_index)
-        self.window.date_filter_combobox.setCurrentIndex(date_filter_index)
+        #self.window.filter_combobox.setCurrentIndex(current_filter_index)
+        #self.window.date_filter_combobox.setCurrentIndex(date_filter_index)
 
         # load shot
         shot = self.window.shot_list.findItems(self.dm.current_shot, QtCore.Qt.MatchExactly)
@@ -136,8 +133,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.window.add_shot_text.returnPressed.connect(self.create_shot)
         self.window.shot_list.currentItemChanged.connect(self.load_task_cards)
         self.window.shot_list.currentItemChanged.connect(self.update_current_shot)
-        self.window.filter_combobox.currentIndexChanged.connect(self.filter_combobox_changed)
-        self.window.date_filter_combobox.currentIndexChanged.connect(self.date_filter_combobox_changed)
+
+        #self.window.filter_combobox.currentIndexChanged.connect(self.filter_combobox_changed)
+        #self.window.date_filter_combobox.currentIndexChanged.connect(self.date_filter_combobox_changed)
+
+        self.window.filters_button.clicked.connect(self.show_filters)
 
         self.window.task_list.itemPressed.connect(self.handle_frame_click)
 
@@ -152,6 +152,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.window.settings_button.clicked.connect(self.open_settings_window)
         self.window.settings_button.clicked.connect(self.dm.save_data_to_json)
+
+    def show_filters(self):
+        #current_state = self.window.filter_tree.isVisible()
+        #self.window.filter_tree.setVisible(not current_state)
+        pass
 
     def open_settings_window(self):
         self.settings_window = SettingsWindow(parent=self)  # Set parent to MainWindow
