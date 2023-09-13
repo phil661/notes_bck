@@ -2,9 +2,8 @@ from notes_model import TaskCardDataModel
 from filter_window import SettingsWindow
 from PySide2 import QtCore, QtWidgets, QtGui
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMessageBox, QLineEdit, QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem
-from PySide2.QtCore import Qt, Slot
-
+from PySide2.QtWidgets import QMessageBox, QLineEdit, QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton
+from PySide2.QtCore import Qt
 
 import sys
 import os
@@ -34,60 +33,58 @@ class ClickableFrame(QtWidgets.QFrame):
 class FilterDialog(QDialog):
     def __init__(self, parent=None):
         super(FilterDialog, self).__init__(parent)
-
+        self.setWindowTitle("Filter Dialog")
+        self.setGeometry(100, 100, 200, 190)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
 
-        self.setGeometry(100, 100, 200, 170)
+        self.init_ui()
 
-        self.filter_tree = QTreeWidget(self)
+        self.dm = TaskCardDataModel()
 
-        # Hide the header
+    def init_ui(self):
+        self.add_button = QPushButton("Clear Filters")
+        self.add_button.setMaximumHeight(18)
+        self.add_button.clicked.connect(self.clear_filters)
+
+        self.filter_tree = QTreeWidget()
         self.filter_tree.setHeaderHidden(True)
 
-        # Add tree widget items for "Status" and "Date Created"
-        status_item = QTreeWidgetItem(self.filter_tree)
-        status_item.setText(0, "Date Created")
-        status_item.setExpanded(True)
+        self.create_status_filter()
+        self.create_date_filter()
 
-        # Add sub-items for "Status" and make them checkable
-        self.todo_item = QTreeWidgetItem(status_item)
-        self.todo_item.setText(0, "To Do")
-        self.todo_item.setCheckState(0, Qt.Unchecked)
-
-        self.urgent_item = QTreeWidgetItem(status_item)
-        self.urgent_item.setText(0, "Urgent")
-        self.urgent_item.setCheckState(0, Qt.Unchecked)
-
-        self.completed_item = QTreeWidgetItem(status_item)
-        self.completed_item.setText(0, "Completed")
-        self.completed_item.setCheckState(0, Qt.Unchecked)
-
-        date_item = QTreeWidgetItem(self.filter_tree)
-        date_item.setText(0, "Date Created")
-        date_item.setExpanded(True)
-
-        # Add sub-items for "Date Created" and make them checkable
-        self.today_item = QTreeWidgetItem(date_item)
-        self.today_item.setText(0, "Today")
-        self.today_item.setCheckState(0, Qt.Unchecked)
-
-        self.yesterday_item = QTreeWidgetItem(date_item)
-        self.yesterday_item.setText(0, "Yesterday")
-        self.yesterday_item.setCheckState(0, Qt.Unchecked)
-
-        self.last_week_item = QTreeWidgetItem(date_item)
-        self.last_week_item.setText(0, "Last Week")
-        self.last_week_item.setCheckState(0, Qt.Unchecked)
-
-        # Connect itemClicked signal to a function that checks the item
-        self.filter_tree.itemClicked.connect(self.checkItem)
+        self.filter_tree.itemClicked.connect(self.check_item)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.add_button)
         layout.addWidget(self.filter_tree)
         self.setLayout(layout)
 
-    def checkItem(self, item, column):
+    def create_status_filter(self):
+        status_item = self.create_tree_item(self.filter_tree, "Status")
+        self.todo_item = self.create_checkable_item(status_item, "To Do")
+        self.urgent_item = self.create_checkable_item(status_item, "Urgent")
+        self.completed_item = self.create_checkable_item(status_item, "Completed")
+
+    def create_date_filter(self):
+        date_item = self.create_tree_item(self.filter_tree, "Date Created")
+        self.today_item = self.create_checkable_item(date_item, "Today")
+        self.yesterday_item = self.create_checkable_item(date_item, "Yesterday")
+        self.last_week_item = self.create_checkable_item(date_item, "Last Week")
+
+    def create_tree_item(self, parent, text):
+        item = QTreeWidgetItem(parent)
+        item.setText(0, text)
+        item.setExpanded(True)
+        return item
+
+    def create_checkable_item(self, parent, text):
+        item = QTreeWidgetItem(parent)
+        item.setText(0, text)
+        item.setCheckState(0, Qt.Unchecked)
+        return item
+
+    def check_item(self, item, column):
         # Check if the clicked item is a sub-item under "Date Created" or "Status"
         if item.parent() and (item.parent().text(0) == "Date Created" or item.parent().text(0) == "Status"):
             # Toggle the item's check state when it's clicked
@@ -95,6 +92,34 @@ class FilterDialog(QDialog):
                 item.setCheckState(column, Qt.Unchecked)
             else:
                 item.setCheckState(column, Qt.Checked)
+
+            self.update_filter_dict()
+
+    def clear_filters(self):
+        top_items = self.filter_tree.findItems("Date Created", Qt.MatchExactly) + self.filter_tree.findItems("Status", Qt.MatchExactly)
+        for top_item in top_items:
+            for child_index in range(top_item.childCount()):
+                child_item = top_item.child(child_index)
+                child_item.setCheckState(0, Qt.Unchecked)
+        self.update_filter_dict()
+
+    def update_filter_dict(self):
+        filter_dict = {}
+        top_items = self.filter_tree.findItems("Date Created", Qt.MatchExactly) + self.filter_tree.findItems("Status",
+                                                                                                             Qt.MatchExactly)
+        for top_item in top_items:
+            top_item_name = top_item.text(0)
+            filter_dict[top_item_name] = {}
+            for child_index in range(top_item.childCount()):
+                child_item = top_item.child(child_index)
+                text = child_item.text(0)
+                check_state = child_item.checkState(0)
+                filter_dict[top_item_name][text] = check_state
+
+        self.dm.filter_dict = filter_dict
+        print(self.dm.filter_dict)
+
+
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -170,8 +195,8 @@ class MainWindow(QtWidgets.QMainWindow):
         current_filter_index = self.dm.current_filter_index
         date_filter_index = self.dm.current_date_filter
 
-        #self.window.filter_combobox.setCurrentIndex(current_filter_index)
-        #self.window.date_filter_combobox.setCurrentIndex(date_filter_index)
+        # self.window.filter_combobox.setCurrentIndex(current_filter_index)
+        # self.window.date_filter_combobox.setCurrentIndex(date_filter_index)
 
         # load shot
         shot = self.window.shot_list.findItems(self.dm.current_shot, QtCore.Qt.MatchExactly)
@@ -352,7 +377,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def load_task_cards(self, filter_date=True):
         self.window.task_list.clear()
-        #self.window.task_list.setSpacing(5)
+        # self.window.task_list.setSpacing(5)
 
         filter_shot_id = self.get_associated_shot_id()
 
@@ -384,7 +409,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 urgent_button.setStyleSheet("background-color: red;")
 
             # Connect the buttons
-            completed_button.clicked.connect(lambda checked=False, task_id=task_card.id: self.dm.toggle_completed(task_id))
+            completed_button.clicked.connect(
+                lambda checked=False, task_id=task_card.id: self.dm.toggle_completed(task_id))
             urgent_button.clicked.connect(lambda checked=False, task_id=task_card.id: self.dm.toggle_urgent(task_id))
             task_text.textChanged.connect(lambda text, task_id=task_card.id: self.task_text_changed_slot(text, task_id))
 
@@ -570,7 +596,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.load_task_cards()
 
     def closeEvent(self, event):
-        self.handle_frame_click()  #Cheat to update
+        self.handle_frame_click()  # Cheat to update
         self.dm.save_data_to_json()
         event.accept()
 

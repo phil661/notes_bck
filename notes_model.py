@@ -43,6 +43,8 @@ class TaskCardDataModel:
         self.path = os.path.expanduser(f"~{self.current_user}/.nuke/Notes")
         self.export_directory = self.path
 
+        self.filter_dict = {}
+
     def create_task_card(self, text, associated_shot_id):
         id = self.generate_random_id()
         time_created = self.get_current_date_and_time()
@@ -233,6 +235,7 @@ class TaskCardDataModel:
                 "current_filter_index": self.current_filter_index,
                 "current_date_filter": self.current_date_filter,
                 "urgent_button_state": self.urgent_button_state,
+                "filter_dict": self.filter_dict,
             }
         }
 
