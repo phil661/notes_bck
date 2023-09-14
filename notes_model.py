@@ -24,7 +24,7 @@ class Shot:
         self.id = id
 
 
-class TaskCardDataModel:
+class DataModel:
     def __init__(self):
         self.current_user = getpass.getuser()
 
@@ -43,7 +43,11 @@ class TaskCardDataModel:
         self.path = os.path.expanduser(f"~{self.current_user}/.nuke/Notes")
         self.export_directory = self.path
 
-        self.filter_dict = {}
+        self.filter_dict = {
+            "Status": ["To Do", "Urgent", "Completed"],
+            "Date Created": ["Today", "Yesterday", "Last Week"]
+        }
+        self.filter_states = {category: {item: False for item in items} for category, items in self.filter_dict.items()}
 
     def create_task_card(self, text, associated_shot_id):
         id = self.generate_random_id()
@@ -297,3 +301,26 @@ class TaskCardDataModel:
         if directory is None:
             directory = self.path
         return directory
+
+    def get_filter_dict(self):
+        return self.filter_dict
+
+    def set_filter_states(self, category, item):
+        if category in self.filter_states and item in self.filter_states[category]:
+            # Toggle the state for the clicked item
+            self.filter_states[category][item] = not self.filter_states[category][item]
+
+        # Print the filter states at the end
+        print("Filter States:")
+        for category, items in self.filter_states.items():
+            for item, state in items.items():
+                print(f"{category} - {item}: {state}")
+
+    def reset_filter_states(self):
+        for category, items in self.filter_states.items():
+            for item in items:
+                self.filter_states[category][item] = False
+
+
+
+

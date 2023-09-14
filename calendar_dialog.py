@@ -1,7 +1,7 @@
 from PySide2.QtGui import QPalette, QTextCharFormat
 from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QApplication, QCalendarWidget, QDialog, QVBoxLayout
-from notes_model import TaskCardDataModel
+from notes_model import DataModel
 import sys
 
 
@@ -10,7 +10,7 @@ class MyCalendarDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Select Date(s)")
         self.setModal(True)  # Make it a modal dialog
-        self.dm = TaskCardDataModel()
+        self.dm = DataModel()
 
         # Add the MyCalendar widget or any other content you need
         self.calendar_widget = MyCalendar()

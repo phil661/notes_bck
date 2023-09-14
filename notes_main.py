@@ -1,4 +1,4 @@
-from notes_model import TaskCardDataModel
+from notes_model import DataModel
 from filter_window import SettingsWindow
 from PySide2 import QtCore, QtWidgets, QtGui
 from PySide2.QtUiTools import QUiLoader
@@ -37,9 +37,9 @@ class FilterDialog(QDialog):
         self.setGeometry(100, 100, 200, 190)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
 
-        self.init_ui()
+        self.dm = DataModel()
 
-        self.dm = TaskCardDataModel()
+        self.init_ui()
 
     def init_ui(self):
         self.add_button = QPushButton("Clear Filters")
@@ -48,9 +48,10 @@ class FilterDialog(QDialog):
 
         self.filter_tree = QTreeWidget()
         self.filter_tree.setHeaderHidden(True)
+        self.filter_tree.setIndentation(0)
+        self.filter_tree.setStyleSheet("QTreeWidget::item { height: 20px; margin-bottom: 0px; }")
 
-        self.create_status_filter()
-        self.create_date_filter()
+        self.create_filter()
 
         self.filter_tree.itemClicked.connect(self.check_item)
 
@@ -60,17 +61,14 @@ class FilterDialog(QDialog):
         layout.addWidget(self.filter_tree)
         self.setLayout(layout)
 
-    def create_status_filter(self):
-        status_item = self.create_tree_item(self.filter_tree, "Status")
-        self.todo_item = self.create_checkable_item(status_item, "To Do")
-        self.urgent_item = self.create_checkable_item(status_item, "Urgent")
-        self.completed_item = self.create_checkable_item(status_item, "Completed")
+    def create_filter(self):
+        filter_dict = self.dm.get_filter_dict()
 
-    def create_date_filter(self):
-        date_item = self.create_tree_item(self.filter_tree, "Date Created")
-        self.today_item = self.create_checkable_item(date_item, "Today")
-        self.yesterday_item = self.create_checkable_item(date_item, "Yesterday")
-        self.last_week_item = self.create_checkable_item(date_item, "Last Week")
+        for category_name, items_list in filter_dict.items():
+            filter_item = self.create_tree_item(self.filter_tree, category_name)
+
+            for item in items_list:
+                setattr(self, f"{item.lower().replace(' ', '_')}_item", self.create_checkable_item(filter_item, item))
 
     def create_tree_item(self, parent, text):
         item = QTreeWidgetItem(parent)
@@ -85,48 +83,44 @@ class FilterDialog(QDialog):
         return item
 
     def check_item(self, item, column):
-        # Check if the clicked item is a sub-item under "Date Created" or "Status"
-        if item.parent() and (item.parent().text(0) == "Date Created" or item.parent().text(0) == "Status"):
-            # Toggle the item's check state when it's clicked
-            if item.checkState(column) == Qt.Checked:
-                item.setCheckState(column, Qt.Unchecked)
-            else:
-                item.setCheckState(column, Qt.Checked)
+        parent = item.parent()
+        filter_dict = self.dm.get_filter_dict()
+        if parent and parent.text(0) in filter_dict:
+            item.checkState(column)
+            new_check_state = Qt.Checked if item.checkState(column) == Qt.Unchecked else Qt.Unchecked
+            item.setCheckState(column, new_check_state)
+            self.dm.set_filter_states(parent.text(0), item.text(0))
+            self.update_checkbox_states()
 
-            self.update_filter_dict()
+    def update_checkbox_states(self):
+        filter_states = self.dm.filter_states
+        filter_dict = self.dm.get_filter_dict()
+
+        for category_name, items_list in filter_dict.items():
+            for item in items_list:
+                checkbox_item = getattr(self, f"{item.lower().replace(' ', '_')}_item", None)
+
+                if category_name in filter_states and item in filter_states[category_name]:
+                    checkbox_item.setCheckState(0, Qt.Checked if filter_states[category_name][item] else Qt.Unchecked)
 
     def clear_filters(self):
-        top_items = self.filter_tree.findItems("Date Created", Qt.MatchExactly) + self.filter_tree.findItems("Status", Qt.MatchExactly)
+        top_items = self.filter_tree.findItems("Date Created", Qt.MatchExactly) + self.filter_tree.findItems("Status",
+                                                                                                             Qt.MatchExactly)
+
         for top_item in top_items:
             for child_index in range(top_item.childCount()):
                 child_item = top_item.child(child_index)
                 child_item.setCheckState(0, Qt.Unchecked)
-        self.update_filter_dict()
 
-    def update_filter_dict(self):
-        filter_dict = {}
-        top_items = self.filter_tree.findItems("Date Created", Qt.MatchExactly) + self.filter_tree.findItems("Status",
-                                                                                                             Qt.MatchExactly)
-        for top_item in top_items:
-            top_item_name = top_item.text(0)
-            filter_dict[top_item_name] = {}
-            for child_index in range(top_item.childCount()):
-                child_item = top_item.child(child_index)
-                text = child_item.text(0)
-                check_state = child_item.checkState(0)
-                filter_dict[top_item_name][text] = check_state
-
-        self.dm.filter_dict = filter_dict
-        print(self.dm.filter_dict)
-
-
+        # Reset all filter states to False in your NotesModel instance (self.dm)
+        self.dm.reset_filter_states()
 
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.dm = TaskCardDataModel()
+        self.dm = DataModel()
         self.dm.load_settings_from_json()
         self.dm.load_data_from_json()
 

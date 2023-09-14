@@ -1,7 +1,7 @@
 from PySide2.QtWidgets import QApplication, QDialog, QFileDialog
 from PySide2.QtUiTools import QUiLoader
 from PySide2 import QtCore
-from notes_model import TaskCardDataModel
+from notes_model import DataModel
 import sys
 import os
 import json
@@ -12,7 +12,7 @@ class SettingsWindow(QDialog):
         super().__init__(parent)
 
         self.base_directory = os.getcwd()
-        self.dm = TaskCardDataModel()
+        self.dm = DataModel()
 
         loader = QUiLoader()
         ui_file = QtCore.QFile("settingsWidget.ui")
