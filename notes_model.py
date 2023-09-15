@@ -25,6 +25,8 @@ class Shot:
 
 
 class DataModel:
+    filter_states = None
+
     def __init__(self):
         self.current_user = getpass.getuser()
 
@@ -47,7 +49,11 @@ class DataModel:
             "Status": ["To Do", "Urgent", "Completed"],
             "Date Created": ["Today", "Yesterday", "Last Week"]
         }
-        self.filter_states = {category: {item: False for item in items} for category, items in self.filter_dict.items()}
+
+        # Initialize filter_states if it's None (first instance)
+        if DataModel.filter_states is None:
+            DataModel.filter_states = {category: {item: False for item in items} for category, items in
+                                       self.filter_dict.items()}
 
     def create_task_card(self, text, associated_shot_id):
         id = self.generate_random_id()
@@ -139,6 +145,12 @@ class DataModel:
         dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
         return dt_string
 
+    @staticmethod
+    def get_current_date():
+        now = datetime.now()
+        date_string = now.strftime("%d/%m/%Y")
+        return date_string
+
     def get_task_cards(self, filter_shot_id=None):
         if filter_shot_id is not None:
             filtered_task_cards = [task_card for task_card in self.task_cards if
@@ -147,72 +159,51 @@ class DataModel:
         else:
             return self.task_cards
 
-    def get_task_cards_todo(self, filter_shot_id=None):
-        todo_task_cards = []
+    def get_task_cards_filtered(self, filter_shot_id=None):
+        # TODO: make the shot_id work.
+        status_filtered = []
+        filtered_task_cards = []
+
+        today_date = self.get_current_date()
+        yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+        # TODO: create the last week filter
+
+        status_filter = self.filter_states.get("Status")
+        date_filter = self.filter_states.get("Date Created")
+
+        # Filter by Status
+        selected_filters_status = [item for item in self.filter_dict.get("Status", []) if
+                                   status_filter.get(item, False)]
 
         for task_card in self.task_cards:
-            if (filter_shot_id and task_card.associated_shot_id != filter_shot_id) or task_card.completed:
+            if filter_shot_id is not None and task_card.associated_shot_id != filter_shot_id:
                 continue
-            todo_task_cards.append(task_card)
 
-        return todo_task_cards
+            if (
+                    ("To Do" in selected_filters_status and not task_card.completed) or
+                    ("Urgent" in selected_filters_status and task_card.urgent and not task_card.completed) or
+                    ("Completed" in selected_filters_status and task_card.completed)
+            ):
+                status_filtered.append(task_card)
 
-    def get_task_cards_completed(self, filter_shot_id=None):
-        completed_task_cards = []
+        # Filter by Date Created
 
-        for task_card in self.task_cards:
-            if task_card.completed:
-                if filter_shot_id is None or task_card.associated_shot_id == filter_shot_id:
-                    completed_task_cards.append(task_card)
+        selected_filters_date = [item for item in self.filter_dict.get("Date Created", []) if
+                                 date_filter.get(item, False)]
 
-        return completed_task_cards
+        for task_card in status_filtered if status_filtered else self.task_cards:
+            if (
+                    ("Today" in selected_filters_date and task_card.time_created.startswith(today_date)) or
+                    ("Yesterday" in selected_filters_date and task_card.time_created.startswith(yesterday_date))
+            ):
+                filtered_task_cards.append(task_card)
 
-    def get_task_cards_urgent(self, filter_shot_id=None):
-        urgent_task_cards = []
-
-        for task_card in self.task_cards:
-            if task_card.urgent:
-                if filter_shot_id is None or task_card.associated_shot_id == filter_shot_id:
-                    urgent_task_cards.append(task_card)
-
-        return urgent_task_cards
-
-    def get_task_cards_date(self, filter_shot_id=None, filter_date=None):
-        date_task_cards = []
-        filter_state = self.current_filter_index
-
-        current_datetime = datetime.now().date()
-
-        # Calculate the start and end of the previous week
-        day_of_week = current_datetime.weekday()
-        start_of_previous_week = current_datetime - timedelta(days=day_of_week + 7)
-        end_of_previous_week = start_of_previous_week + timedelta(days=6)
-
-        # Define a mapping of filter_state to corresponding functions
-        filter_functions = {
-            0: self.get_task_cards_todo,
-            1: self.get_task_cards_urgent,
-            2: self.get_task_cards_completed,
-            3: self.get_task_cards,
-        }
-
-        # Get the appropriate task cards based on filter_state and filter_shot_id
-        task_cards = filter_functions.get(filter_state, self.get_task_cards)(filter_shot_id)
-
-        for task_card in task_cards:
-            card_date = datetime.strptime(task_card.time_created, "%d/%m/%Y %H:%M:%S").date()
-
-            if filter_date == 0 and card_date == current_datetime:
-                date_task_cards.append(task_card)
-            elif filter_date == 1 and card_date == (current_datetime - timedelta(days=1)):
-                date_task_cards.append(task_card)
-            elif filter_date == 2:
-                if start_of_previous_week <= card_date <= end_of_previous_week:
-                    date_task_cards.append(task_card)
-            elif filter_date == 3:
-                date_task_cards.append(task_card)
-
-        return date_task_cards
+        if filtered_task_cards:
+            return filtered_task_cards
+        elif status_filtered:
+            return status_filtered
+        else:
+            return self.task_cards
 
     def toggle_completed(self, task_id):
         for task_card in self.task_cards:
@@ -278,7 +269,7 @@ class DataModel:
             os.mkdir(self.path)
 
         settings = {
-                "export_directory": self.export_directory
+            "export_directory": self.export_directory
         }
 
         with open(file_path, "w") as file:
@@ -310,17 +301,7 @@ class DataModel:
             # Toggle the state for the clicked item
             self.filter_states[category][item] = not self.filter_states[category][item]
 
-        # Print the filter states at the end
-        print("Filter States:")
-        for category, items in self.filter_states.items():
-            for item, state in items.items():
-                print(f"{category} - {item}: {state}")
-
     def reset_filter_states(self):
         for category, items in self.filter_states.items():
             for item in items:
                 self.filter_states[category][item] = False
-
-
-
-

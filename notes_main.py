@@ -31,13 +31,16 @@ class ClickableFrame(QtWidgets.QFrame):
 
 
 class FilterDialog(QDialog):
-    def __init__(self, parent=None):
+    filterStateChanged = QtCore.Signal()
+
+    def __init__(self, main_window, parent=None):
         super(FilterDialog, self).__init__(parent)
         self.setWindowTitle("Filter Dialog")
         self.setGeometry(100, 100, 200, 190)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
 
         self.dm = DataModel()
+        self.main_window = main_window
 
         self.init_ui()
 
@@ -85,12 +88,16 @@ class FilterDialog(QDialog):
     def check_item(self, item, column):
         parent = item.parent()
         filter_dict = self.dm.get_filter_dict()
+
         if parent and parent.text(0) in filter_dict:
             item.checkState(column)
             new_check_state = Qt.Checked if item.checkState(column) == Qt.Unchecked else Qt.Unchecked
             item.setCheckState(column, new_check_state)
+
             self.dm.set_filter_states(parent.text(0), item.text(0))
+
             self.update_checkbox_states()
+            self.filterStateChanged.emit()
 
     def update_checkbox_states(self):
         filter_states = self.dm.filter_states
@@ -150,7 +157,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.window.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        self.filter_dialog = None
+        self.filter_dialog = FilterDialog(self)  # Create an instance of FilterDialog
+        self.filter_dialog.filterStateChanged.connect(self.load_task_cards)
 
         try:
             if nuke:
@@ -235,6 +243,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.window.settings_button.clicked.connect(self.open_settings_window)
         self.window.settings_button.clicked.connect(self.dm.save_data_to_json)
+
+    def reload_task_cards(self):
+        self.load_task_cards()
 
     def toggle_filters(self):
         if not self.filter_dialog:
@@ -367,7 +378,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.urgent_button_clicked()
 
             self.load_task_cards()
-            self.update_filter()
 
     def load_task_cards(self, filter_date=True):
         self.window.task_list.clear()
@@ -375,8 +385,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         filter_shot_id = self.get_associated_shot_id()
 
-        current_filter = self.dm.current_date_filter
-        task_cards = self.dm.get_task_cards_date(filter_shot_id, current_filter)
+        task_cards = self.dm.get_task_cards_filtered(filter_shot_id)
 
         # Sort the task cards by index before adding them to the list
         sorted_task_cards = sorted(task_cards, key=lambda x: x.index)
@@ -403,14 +412,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 urgent_button.setStyleSheet("background-color: red;")
 
             # Connect the buttons
-            completed_button.clicked.connect(
-                lambda checked=False, task_id=task_card.id: self.dm.toggle_completed(task_id))
+            completed_button.clicked.connect(lambda checked=False, task_id=task_card.id: self.dm.toggle_completed(task_id))
             urgent_button.clicked.connect(lambda checked=False, task_id=task_card.id: self.dm.toggle_urgent(task_id))
             task_text.textChanged.connect(lambda text, task_id=task_card.id: self.task_text_changed_slot(text, task_id))
 
-            # UpdateFilters
-            completed_button.clicked.connect(self.handle_list_button_clicked)
-            urgent_button.clicked.connect(self.handle_list_button_clicked)
+            completed_button.clicked.connect(self.urgent_button_clicked)
+            urgent_button.clicked.connect(self.completed_button_clicked)
 
             self.window.task_list.addItem(list_item)
             self.window.task_list.setItemWidget(list_item, task_card_ui)
@@ -432,22 +439,6 @@ class MainWindow(QtWidgets.QMainWindow):
             # Update the index of the task card in your data model
             self.dm.update_task_card_index(task_text, index)
 
-    def handle_list_button_clicked(self):
-        self.update_filter()
-
-    def update_filter(self):
-        self.update_task_card_indices()  # cheat to update
-
-        selected_index = self.window.filter_combobox.currentIndex()
-
-        if selected_index != -1:
-            # Simulate refreshing the task cards based on the selected filter
-            self.filter_combobox_changed(selected_index)
-
-            # If the same filter is selected again, clear the selection to refresh
-            self.window.filter_combobox.setCurrentIndex(-1)
-            self.window.filter_combobox.setCurrentIndex(selected_index)
-
     def urgent_button_clicked(self):
         state = self.window.urgent_button.isChecked()
         self.dm.urgent_button_state = state
@@ -455,6 +446,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.window.urgent_button.setStyleSheet("background-color: red;")
         else:
             self.window.urgent_button.setStyleSheet("background-color: "";")
+
+        self.load_task_cards()
+
+    def completed_button_clicked(self):  # Add a handler for the Completed button
+        self.load_task_cards()
 
     def update_current_shot(self, current_item):
         if current_item:
