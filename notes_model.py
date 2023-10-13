@@ -103,6 +103,12 @@ class DataModel:
     def get_shot_list(self):
         return self.shot_list
 
+    def get_shot_text_by_id(self, shot_id):
+        for shot in self.shot_list:
+            if shot.id == shot_id:
+                return shot.text
+        return None
+
     def delete_shot(self, shot_id):
         task_cards_to_delete = []
 
@@ -151,7 +157,25 @@ class DataModel:
         date_string = now.strftime("%d/%m/%Y")
         return date_string
 
-    def get_task_cards(self, filter_shot_id=None):
+    def get_task_cards_filtered(self, filter_shot_id=None):
+        status = False
+
+        task_cards = self.get_task_cards_by_shot_id(filter_shot_id)
+
+        # Filter by Status
+        status_filter = self.filter_states.get("Status")
+        if any(status_filter.values()):
+            task_cards = self.get_task_cards_by_status(status_filter, task_cards)
+            status = True
+
+        # Filter by Date
+        date_filter = self.filter_states.get("Date Created")
+        if any(date_filter.values()):
+            task_cards = self.get_task_cards_by_date(date_filter, task_cards, status)
+
+        return task_cards
+
+    def get_task_cards_by_shot_id(self, filter_shot_id=None):
         if filter_shot_id is not None:
             filtered_task_cards = [task_card for task_card in self.task_cards if
                                    task_card.associated_shot_id == filter_shot_id]
@@ -159,51 +183,47 @@ class DataModel:
         else:
             return self.task_cards
 
-    def get_task_cards_filtered(self, filter_shot_id=None):
-        # TODO: make the shot_id work.
-        status_filtered = []
-        filtered_task_cards = []
+    def get_task_cards_by_status(self, status_filter, task_cards):
+        filtered = []
 
-        today_date = self.get_current_date()
-        yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
-        # TODO: create the last week filter
-
-        status_filter = self.filter_states.get("Status")
-        date_filter = self.filter_states.get("Date Created")
-
-        # Filter by Status
         selected_filters_status = [item for item in self.filter_dict.get("Status", []) if
                                    status_filter.get(item, False)]
 
-        for task_card in self.task_cards:
-            if filter_shot_id is not None and task_card.associated_shot_id != filter_shot_id:
-                continue
-
+        for task_card in task_cards:
             if (
                     ("To Do" in selected_filters_status and not task_card.completed) or
                     ("Urgent" in selected_filters_status and task_card.urgent and not task_card.completed) or
                     ("Completed" in selected_filters_status and task_card.completed)
             ):
-                status_filtered.append(task_card)
+                filtered.append(task_card)
 
-        # Filter by Date Created
+        return filtered if filtered else None
+
+    def get_task_cards_by_date(self, date_filter, task_cards, status=False):
+        filtered = []
+
+        today_date = self.get_current_date()
+        yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+
+        # Calculate the date range for the last week
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=end_date.weekday() + 7)
+        start_date_str = start_date.strftime("%d/%m/%Y")
+        end_date_str = end_date.strftime("%d/%m/%Y")
 
         selected_filters_date = [item for item in self.filter_dict.get("Date Created", []) if
                                  date_filter.get(item, False)]
 
-        for task_card in status_filtered if status_filtered else self.task_cards:
+        for task_card in task_cards:
             if (
                     ("Today" in selected_filters_date and task_card.time_created.startswith(today_date)) or
-                    ("Yesterday" in selected_filters_date and task_card.time_created.startswith(yesterday_date))
+                    ("Yesterday" in selected_filters_date and task_card.time_created.startswith(yesterday_date)) or
+                    ("Last Week" in selected_filters_date and
+                     start_date_str <= task_card.time_created <= end_date_str)
             ):
-                filtered_task_cards.append(task_card)
+                filtered.append(task_card)
 
-        if filtered_task_cards:
-            return filtered_task_cards
-        elif status_filtered:
-            return status_filtered
-        else:
-            return self.task_cards
+        return filtered if filtered else (task_cards if status else [])
 
     def toggle_completed(self, task_id):
         for task_card in self.task_cards:

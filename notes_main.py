@@ -2,7 +2,7 @@ from notes_model import DataModel
 from filter_window import SettingsWindow
 from PySide2 import QtCore, QtWidgets, QtGui
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtWidgets import QMessageBox, QLineEdit, QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton
+from PySide2.QtWidgets import QMessageBox, QLineEdit, QDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, QListWidget
 from PySide2.QtCore import Qt
 
 import sys
@@ -17,17 +17,6 @@ except:
 
 sys.path.append('/Volumes/Projects/Production/Personal/Plariviere/notes_app')
 os.chdir("/Volumes/Projects/Production/Personal/Plariviere/notes_app")
-
-
-class ClickableFrame(QtWidgets.QFrame):
-    clicked = QtCore.Signal()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def dropEvent(self, event):
-        self.dropped.emit()
-        super().dropEvent(event)
 
 
 class FilterDialog(QDialog):
@@ -224,25 +213,57 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setup_connections(self):
         self.window.task_input_text.returnPressed.connect(self.create_task_card)
+
         self.window.add_shot_text.returnPressed.connect(self.create_shot)
+
         self.window.shot_list.currentItemChanged.connect(self.load_task_cards)
         self.window.shot_list.currentItemChanged.connect(self.update_current_shot)
+        self.window.shot_list.itemDoubleClicked.connect(self.rename_selected_shot)
 
         self.window.filters_button.clicked.connect(self.toggle_filters)
 
-        self.window.task_list.itemPressed.connect(self.handle_frame_click)
-
         self.window.urgent_button.clicked.connect(self.urgent_button_clicked)
-        self.window.task_list.itemClicked.connect(self.handle_item_clicked)  # Connect the signal
+
+        self.window.task_list.itemClicked.connect(self.handle_item_clicked)
+        #self.window.task_list.rowsMoved.connect(self.test)
 
         self.window.text_search.textChanged.connect(self.task_search)
-
-        self.window.shot_list.itemDoubleClicked.connect(self.rename_selected_shot)
-
         self.window.shot_search.textChanged.connect(self.shot_search)
 
         self.window.settings_button.clicked.connect(self.open_settings_window)
         self.window.settings_button.clicked.connect(self.dm.save_data_to_json)
+
+        self.load_tree()
+
+    def add_random_items_to_tree(self, num_items):
+        for _ in range(num_items):
+            item_text = "Random Item " + str(random.randint(1, 100))
+            item = QtWidgets.QTreeWidgetItem(self.window.task_tree)
+            item.setText(0, item_text)
+
+    def load_tree(self):
+        self.window.task_tree.clear()  # Clear the existing items in the QTreeWidget
+        task_cards = self.dm.get_task_cards_filtered()
+
+        # Create a dictionary to group task cards by associated_shot_id
+        task_cards_by_shot = {}
+
+        for task_card in task_cards:
+            text = task_card.text
+            shot_id = task_card.associated_shot_id
+            shot_text = self.dm.get_shot_text_by_id(shot_id)
+            print(text)
+
+            # If the shot ID is not in the dictionary, create a new parent item
+            if shot_id not in task_cards_by_shot:
+                task_cards_by_shot[shot_id] = QtWidgets.QTreeWidgetItem(self.window.task_tree)
+                task_cards_by_shot[shot_id].setText(0, shot_text)
+
+            # Create a child item for the text and add it as a child of the parent item
+            child_item = QtWidgets.QTreeWidgetItem(task_cards_by_shot[shot_id])
+            child_item.setText(0, text)
+
+        self.window.task_tree.expandAll()
 
     def reload_task_cards(self):
         self.load_task_cards()
@@ -379,9 +400,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.load_task_cards()
 
-    def load_task_cards(self, filter_date=True):
+    def load_task_cards(self):
         self.window.task_list.clear()
-        # self.window.task_list.setSpacing(5)
 
         filter_shot_id = self.get_associated_shot_id()
 
@@ -425,10 +445,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def task_text_changed_slot(self, new_text, task_id):
         self.dm.update_task_card_text(task_id, new_text)
 
-    def handle_frame_click(self):
-        self.update_task_card_indices()
-
     def update_task_card_indices(self):
+        print('wow')
         for index in range(self.window.task_list.count()):
             list_item = self.window.task_list.item(index)
             task_card_ui = self.window.task_list.itemWidget(list_item)
@@ -586,7 +604,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.load_task_cards()
 
     def closeEvent(self, event):
-        self.handle_frame_click()  # Cheat to update
+        self.update_task_card_indices()  # Cheat to update
         self.dm.save_data_to_json()
         event.accept()
 
