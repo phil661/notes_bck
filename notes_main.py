@@ -235,12 +235,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.load_tree()
 
-    def add_random_items_to_tree(self, num_items):
-        for _ in range(num_items):
-            item_text = "Random Item " + str(random.randint(1, 100))
-            item = QtWidgets.QTreeWidgetItem(self.window.task_tree)
-            item.setText(0, item_text)
-
     def load_tree(self):
         self.window.task_tree.clear()  # Clear the existing items in the QTreeWidget
         task_cards = self.dm.get_task_cards_filtered()
